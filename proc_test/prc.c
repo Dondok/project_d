@@ -9,10 +9,19 @@
 //	#include <asm/sal.h>
 #include <linux/uaccess.h>
 #include <linux/rbtree.h>
+#include "rbtree/my_rbtree.h"
+
+#include <linux/netfilter.h>
+#include <linux/netfilter_ipv4.h>
+#include <linux/ip.h>
+#include <linux/tcp.h>
+#include <linux/udp.h>
 
 #define BASE_DIR	"base_dir"
 #define EOF         "\0"
 #define HELLO_MSG   "Hello user_space\n"
+#define LEN_MSG 160
+static char buf_msg[LEN_MSG] = "53\n";
 
 static char *buff_glob = HELLO_MSG;
 
@@ -53,7 +62,7 @@ static ssize_t file_read(struct file *f, /* см. include/linux/fs.h   */
 
     //sprintf(message, "Last input:%s\n", Message);
     int size = strlen(buff_glob);
-
+//копирует буффер в пространство полльзователя
     if (copy_to_user(buf_user, buff_glob, size))
     {
         	return -EFAULT;
@@ -80,17 +89,211 @@ ssize_t probchar_write(struct file *filp,
 static ssize_t file_write(struct file *file, const char __user *buf_user,
 				  size_t count, loff_t *pos)
 {
-
+  struct mytype *test;
+  struct rb_tree * my_tree;
 	if (count > PAGE_SIZE)
 		count = PAGE_SIZE;
     char buf_help[PAGE_SIZE];
+//копирует буффер из пространства пользователя в ядро
 	if (copy_from_user(buf_help, buf_user, count))
 	{
         return -EFAULT;
-    }
+  }
+   my_insert(my_tree ,test);
     buff_glob = buf_help;
 	return count;
 }
+
+static unsigned int func_pre_routing(void *priv, struct sk_buff *skb,
+						  const struct nf_hook_state *state)
+{
+	long port_dest = 0;
+	struct iphdr *iph;
+	struct udphdr *udph;
+	struct tcphdr *tcph;
+
+	if (kstrtol(buf_msg, 10, &port_dest) < 0){
+		return -EINVAL;
+	}
+
+	if (!skb)
+		return NF_ACCEPT;
+
+	iph = ip_hdr(skb);
+	if (iph->protocol == IPPROTO_UDP) {
+		udph = udp_hdr(skb);
+		if (ntohs(udph->dest) == port_dest)	{
+			return NF_DROP;
+		}
+	}
+	else if (iph->protocol == IPPROTO_TCP) {
+		tcph = tcp_hdr(skb);
+		if (ntohs(tcph->dest) == port_dest)	{
+			return NF_DROP;
+		}
+	}
+	return NF_ACCEPT;
+}
+
+static unsigned int func_forward(void *priv, struct sk_buff *skb,
+						  const struct nf_hook_state *state)
+{
+	long port_dest = 0;
+	struct iphdr *iph;
+	struct udphdr *udph;
+	struct tcphdr *tcph;
+
+	if (kstrtol(buf_msg, 10, &port_dest) < 0){
+		return -EINVAL;
+	}
+
+	if (!skb)
+		return NF_ACCEPT;
+
+	iph = ip_hdr(skb);
+	if (iph->protocol == IPPROTO_UDP) {
+		udph = udp_hdr(skb);
+		if (ntohs(udph->dest) == port_dest)	{
+			return NF_DROP;
+		}
+	}
+	else if (iph->protocol == IPPROTO_TCP) {
+		tcph = tcp_hdr(skb);
+		if (ntohs(tcph->dest) == port_dest)	{
+			return NF_DROP;
+		}
+	}
+	return NF_ACCEPT;
+}
+
+static unsigned int func_input(void *priv, struct sk_buff *skb,
+						  const struct nf_hook_state *state)
+{
+	long port_dest = 0;
+	struct iphdr *iph;
+	struct udphdr *udph;
+	struct tcphdr *tcph;
+
+	if (kstrtol(buf_msg, 10, &port_dest) < 0){
+		return -EINVAL;
+	}
+
+	if (!skb)
+		return NF_ACCEPT;
+
+	iph = ip_hdr(skb);
+	if (iph->protocol == IPPROTO_UDP) {
+		udph = udp_hdr(skb);
+		if (ntohs(udph->dest) == port_dest)	{
+			return NF_DROP;
+		}
+	}
+	else if (iph->protocol == IPPROTO_TCP) {
+		tcph = tcp_hdr(skb);
+		if (ntohs(tcph->dest) == port_dest)	{
+			return NF_DROP;
+		}
+	}
+	return NF_ACCEPT;
+}
+
+static unsigned int func_output(void *priv, struct sk_buff *skb,
+						  const struct nf_hook_state *state)
+{
+	long port_dest = 0;
+	struct iphdr *iph;
+	struct udphdr *udph;
+	struct tcphdr *tcph;
+
+	if (kstrtol(buf_msg, 10, &port_dest) < 0){
+		return -EINVAL;
+	}
+
+	if (!skb)
+		return NF_ACCEPT;
+
+	iph = ip_hdr(skb);
+	if (iph->protocol == IPPROTO_UDP) {
+		udph = udp_hdr(skb);
+		if (ntohs(udph->dest) == port_dest)	{
+			return NF_DROP;
+		}
+	}
+	else if (iph->protocol == IPPROTO_TCP) {
+		tcph = tcp_hdr(skb);
+		if (ntohs(tcph->dest) == port_dest)	{
+			return NF_DROP;
+		}
+	}
+	return NF_ACCEPT;
+}
+
+static unsigned int func_post_routing(void *priv, struct sk_buff *skb,
+						  const struct nf_hook_state *state)
+{
+	long port_dest = 0;
+	struct iphdr *iph;
+	struct udphdr *udph;
+	struct tcphdr *tcph;
+
+	if (kstrtol(buf_msg, 10, &port_dest) < 0){
+		return -EINVAL;
+	}
+
+	if (!skb)
+		return NF_ACCEPT;
+
+	iph = ip_hdr(skb);
+	if (iph->protocol == IPPROTO_UDP) {
+		udph = udp_hdr(skb);
+		if (ntohs(udph->dest) == port_dest)	{
+			return NF_DROP;
+		}
+	}
+	else if (iph->protocol == IPPROTO_TCP) {
+		tcph = tcp_hdr(skb);
+		if (ntohs(tcph->dest) == port_dest)	{
+			return NF_DROP;
+		}
+	}
+	return NF_ACCEPT;
+}
+
+static const struct nf_hook_ops prerouting = {
+	.hook		= func_pre_routing,			/* hook function */
+	.pf		    = PF_INET,			/* IPv4 */
+	.hooknum	= NF_INET_PRE_ROUTING,	/* received packets */
+	.priority	= NF_IP_PRI_FIRST,		/* max hook priority */
+};
+
+static const struct nf_hook_ops forward = {
+	.hook		= func_forward,			/* hook function */
+	.pf		    = PF_INET,			/* IPv4 */
+	.hooknum	= NF_INET_FORWARD,	/* received packets */
+	.priority	= NF_IP_PRI_FIRST,		/* max hook priority */
+};
+
+static const struct nf_hook_ops input = {
+	.hook		= func_input,			/* hook function */
+	.pf		    = PF_INET,			/* IPv4 */
+	.hooknum	= NF_INET_LOCAL_IN  ,	/* received packets */
+	.priority	= NF_IP_PRI_FIRST,		/* max hook priority */
+};
+
+static const struct nf_hook_ops output = {
+	.hook		= func_output,			/* hook function */
+	.pf		    = PF_INET,			/* IPv4 */
+	.hooknum	= NF_INET_LOCAL_OUT,	/* received packets */
+	.priority	= NF_IP_PRI_FIRST,		/* max hook priority */
+};
+
+static const struct nf_hook_ops postrouting = {
+	.hook		= func_post_routing,			/* hook function */
+	.pf		    = PF_INET,			/* IPv4 */
+	.hooknum	= NF_INET_POST_ROUTING,	/* received packets */
+	.priority	= NF_IP_PRI_FIRST,		/* max hook priority */
+};
+
 
 static const struct file_operations f_ops = {
 	.owner		= THIS_MODULE,
@@ -116,8 +319,13 @@ int init_module()
 	}
     //функции для создания файла в родительской директории
     entry = proc_create_data("file_base_dir", S_IRUGO | S_IWUSR, base_dir, &f_ops, 0);
-    //proc_create_data(entry->name, 0644, named_dir,&srm_env_proc_fops, (void *)entry->id))
-    //entry = proc_create_single("test_file", S_IRUGO, base_dir, fake_ide_media_proc_show);
+
+    nf_register_net_hook(&init_net, &prerouting);
+    nf_register_net_hook(&init_net, &forward);
+    nf_register_net_hook(&init_net, &input);
+    nf_register_net_hook(&init_net, &output);
+    nf_register_net_hook(&init_net, &postrouting);
+
   return rv;
 }
 
