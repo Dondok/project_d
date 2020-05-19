@@ -1,17 +1,8 @@
 #include <linux/rbtree.h>
-/*
- * data node's
- */
 
-struct mytype
-{
-  	struct rb_node node;
-  	char *keystring;
-};
 /*
  * root
  */
-
 struct rb_tree
 {
     struct rb_node *root; // указатель на корневой узел

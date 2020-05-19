@@ -6,7 +6,6 @@
 #include <linux/proc_fs.h>
 #include <linux/seq_file.h>
 #include <linux/uaccess.h>
-//	#include <asm/sal.h>
 #include <linux/uaccess.h>
 #include <linux/rbtree.h>
 #include "rbtree/my_rbtree.h"
@@ -21,7 +20,12 @@
 #define EOF         "\0"
 #define HELLO_MSG   "Hello user_space\n"
 #define LEN_MSG 160
-static char buf_msg[LEN_MSG] = "53\n";
+
+struct rb_tree * input;
+struct rb_tree * output;
+struct rb_tree * forward;
+struct rb_tree * pre;
+struct rb_tree * post;
 
 static char *buff_glob = HELLO_MSG;
 
@@ -71,26 +75,12 @@ static ssize_t file_read(struct file *f, /* см. include/linux/fs.h   */
     return size;
 
 }
-/*
-ssize_t probchar_write(struct file *filp,
-    const char __user *data, size_t s, loff_t *off) {
 
-    printk("Data> |%s|\n", buf_user); // only for debug
-    char chars[MAX_LENGHT];
-    if(size > MAX_LENGHT)
-        size = MAX_LENGHT;
-    if (copy_from_user(chars, buf_user, size)) {
-        return -EFAULT;
-    }
-    printk(KERN_DEBUG "Chars> |%s|\n", chars);
-    buff_glob = chars;
-    return size;
-*/
 static ssize_t file_write(struct file *file, const char __user *buf_user,
 				  size_t count, loff_t *pos)
 {
-  struct mytype *test;
-  struct rb_tree * my_tree;
+  //struct mytype *test;
+  //struct rb_tree * my_tree;
 	if (count > PAGE_SIZE)
 		count = PAGE_SIZE;
     char buf_help[PAGE_SIZE];
@@ -99,199 +89,358 @@ static ssize_t file_write(struct file *file, const char __user *buf_user,
 	{
         return -EFAULT;
   }
-   my_insert(my_tree ,test);
+  // my_insert(my_tree ,test);
     buff_glob = buf_help;
 	return count;
-}
-
-static unsigned int func_pre_routing(void *priv, struct sk_buff *skb,
-						  const struct nf_hook_state *state)
-{
-	long port_dest = 0;
-	struct iphdr *iph;
-	struct udphdr *udph;
-	struct tcphdr *tcph;
-
-	if (kstrtol(buf_msg, 10, &port_dest) < 0){
-		return -EINVAL;
-	}
-
-	if (!skb)
-		return NF_ACCEPT;
-
-	iph = ip_hdr(skb);
-	if (iph->protocol == IPPROTO_UDP) {
-		udph = udp_hdr(skb);
-		if (ntohs(udph->dest) == port_dest)	{
-			return NF_DROP;
-		}
-	}
-	else if (iph->protocol == IPPROTO_TCP) {
-		tcph = tcp_hdr(skb);
-		if (ntohs(tcph->dest) == port_dest)	{
-			return NF_DROP;
-		}
-	}
-	return NF_ACCEPT;
 }
 
 static unsigned int func_forward(void *priv, struct sk_buff *skb,
 						  const struct nf_hook_state *state)
 {
-	long port_dest = 0;
+  long port_dest = 0;
+  struct machdr *mach;
 	struct iphdr *iph;
 	struct udphdr *udph;
 	struct tcphdr *tcph;
 
-	if (kstrtol(buf_msg, 10, &port_dest) < 0){
-		return -EINVAL;
-	}
+  int result = 0;
+  char * pre = NULL;
+  char * rc  = NULL;
 
 	if (!skb)
 		return NF_ACCEPT;
 
-	iph = ip_hdr(skb);
-	if (iph->protocol == IPPROTO_UDP) {
-		udph = udp_hdr(skb);
-		if (ntohs(udph->dest) == port_dest)	{
-			return NF_DROP;
-		}
-	}
-	else if (iph->protocol == IPPROTO_TCP) {
-		tcph = tcp_hdr(skb);
-		if (ntohs(tcph->dest) == port_dest)	{
-			return NF_DROP;
-		}
-	}
-	return NF_ACCEPT;
-}
+  while ((pre = my_search(pre)) != NULL)
+  {
+    if (strstr(pre,"mac"))
+    {
+      if(strstr(pre,"dst"))
+      {
+        while( rc != NULL)
+        {
+          rc = strtok(pre, " ")
+        }
+        mach = mac_hdr(skb);
+        if (kstrtol(rc, 10, &result) < 0){
+      		return -EINVAL;
+      	}
+        if (htohs(mach->dest) == result )
+        {
+          return NF_DROP;
+        }
+      }
+      if(strstr(pre,"src"))
+      {
+        while( rc != NULL)
+        {
+          rc = strtok(pre, " ")
+        }
+        mach = mac_hdr(skb);
+        if (kstrtol(rc, 10, &result) < 0){
+      		return -EINVAL;
+      	}
+        if (htohs(mach->src) == result )
+        {
+          return NF_DROP;
+        }
+      }
 
-static unsigned int func_input(void *priv, struct sk_buff *skb,
-						  const struct nf_hook_state *state)
-{
-	long port_dest = 0;
-	struct iphdr *iph;
-	struct udphdr *udph;
-	struct tcphdr *tcph;
+    }
+    if (strstr(pre,"ip"))
+    {
+      if(strstr(pre,"dst"))
+      {
+        while( rc != NULL)
+        {
+          rc = strtok(pre, " ")
+        }
+        iph = ip_hdr(skb);
+        if (kstrtol(rc, 10, &result) < 0){
+      		return -EINVAL;
+      	}
+        if (htohs(iph->dest) == result )
+        {
+          return NF_DROP;
+        }
+      }
+      if(strstr(pre,"src"))
+      {
+        while( rc != NULL)
+        {
+          rc = strtok(pre, " ")
+        }
+        iph = ip_hdr(skb);
+        if (kstrtol(rc, 10, &result) < 0){
+      		return -EINVAL;
+      	}
+        if (htohs(iph->src) == result )
+        {
+          return NF_DROP;
+        }
+      }
+    }
+    if (strstr(pre,"tcp"))
+    {
+      if (strstr(pre,"port_dst"))
+      {
+        while( rc != NULL)
+        {
+          rc = strtok(pre, " ")
+        }
+        tcph = tcp_hdr(skb);
+        if (kstrtol(rc, 10, &result) < 0){
+          return -EINVAL;
+        }
+        if (htohs(tcph->port_dst) == result )
+        {
+          return NF_DROP;
+        }
+      }
+      if (strstr(pre,"port_src"))
+      {
+        while( rc != NULL)
+        {
+          rc = strtok(pre, " ")
+        }
+        tcph = tcp_hdr(skb);
+        if (kstrtol(rc, 10, &result) < 0){
+          return -EINVAL;
+        }
+        if (htohs(tcph->port_src) == result )
+        {
+          return NF_DROP;
+        }
+      }
 
-	if (kstrtol(buf_msg, 10, &port_dest) < 0){
-		return -EINVAL;
-	}
+    }
+    if (strstr(pre,"udp"))
+    {
+      if (strstr(pre,"port_dst"))
+      {
+        while( rc != NULL)
+        {
+          rc = strtok(pre, " ")
+        }
+        udph = udp_hdr(skb);
+        if (kstrtol(rc, 10, &result) < 0){
+          return -EINVAL;
+        }
+        if (htohs(tcph->port_dst) == result )
+        {
+          return NF_DROP;
+        }
+      }
+      if (strstr(pre,"port_src"))
+      {
+        while( rc != NULL)
+        {
+          rc = strtok(pre, " ")
+        }
+        udph = udp_hdr(skb);
+        if (kstrtol(rc, 10, &result) < 0){
+          return -EINVAL;
+        }
+        if (htohs(udph->port_src) == result )
+        {
+          return NF_DROP;
+        }
+      }
+    }
 
-	if (!skb)
-		return NF_ACCEPT;
-
-	iph = ip_hdr(skb);
-	if (iph->protocol == IPPROTO_UDP) {
-		udph = udp_hdr(skb);
-		if (ntohs(udph->dest) == port_dest)	{
-			return NF_DROP;
-		}
-	}
-	else if (iph->protocol == IPPROTO_TCP) {
-		tcph = tcp_hdr(skb);
-		if (ntohs(tcph->dest) == port_dest)	{
-			return NF_DROP;
-		}
-	}
-	return NF_ACCEPT;
-}
-
-static unsigned int func_output(void *priv, struct sk_buff *skb,
-						  const struct nf_hook_state *state)
-{
-	long port_dest = 0;
-	struct iphdr *iph;
-	struct udphdr *udph;
-	struct tcphdr *tcph;
-
-	if (kstrtol(buf_msg, 10, &port_dest) < 0){
-		return -EINVAL;
-	}
-
-	if (!skb)
-		return NF_ACCEPT;
-
-	iph = ip_hdr(skb);
-	if (iph->protocol == IPPROTO_UDP) {
-		udph = udp_hdr(skb);
-		if (ntohs(udph->dest) == port_dest)	{
-			return NF_DROP;
-		}
-	}
-	else if (iph->protocol == IPPROTO_TCP) {
-		tcph = tcp_hdr(skb);
-		if (ntohs(tcph->dest) == port_dest)	{
-			return NF_DROP;
-		}
-	}
+  }
 	return NF_ACCEPT;
 }
 
 static unsigned int func_post_routing(void *priv, struct sk_buff *skb,
 						  const struct nf_hook_state *state)
 {
-	long port_dest = 0;
-	struct iphdr *iph;
-	struct udphdr *udph;
-	struct tcphdr *tcph;
+  long port_dest = 0;
+  struct machdr *mach;
+  struct iphdr *iph;
+  struct udphdr *udph;
+  struct tcphdr *tcph;
 
-	if (kstrtol(buf_msg, 10, &port_dest) < 0){
-		return -EINVAL;
-	}
+  int result = 0;
+  char * pre = NULL;
+  char * rc  = NULL;
 
-	if (!skb)
-		return NF_ACCEPT;
+  if (!skb)
+    return NF_ACCEPT;
 
-	iph = ip_hdr(skb);
-	if (iph->protocol == IPPROTO_UDP) {
-		udph = udp_hdr(skb);
-		if (ntohs(udph->dest) == port_dest)	{
-			return NF_DROP;
-		}
-	}
-	else if (iph->protocol == IPPROTO_TCP) {
-		tcph = tcp_hdr(skb);
-		if (ntohs(tcph->dest) == port_dest)	{
-			return NF_DROP;
-		}
-	}
-	return NF_ACCEPT;
+  while ((pre = my_search(pre)) != NULL)
+  {
+    if (strstr(pre,"mac"))
+    {
+      if(strstr(pre,"dst"))
+      {
+        while( rc != NULL)
+        {
+          rc = strtok(pre, " ")
+        }
+        mach = mac_hdr(skb);
+        if (kstrtol(rc, 10, &result) < 0){
+          return -EINVAL;
+        }
+        if (htohs(mach->dest) == result )
+        {
+          return NF_DROP;
+        }
+      }
+      if(strstr(pre,"src"))
+      {
+        while( rc != NULL)
+        {
+          rc = strtok(pre, " ")
+        }
+        mach = mac_hdr(skb);
+        if (kstrtol(rc, 10, &result) < 0){
+          return -EINVAL;
+        }
+        if (htohs(mach->src) == result )
+        {
+          return NF_DROP;
+        }
+      }
+
+    }
+    if (strstr(pre,"ip"))
+    {
+      if(strstr(pre,"dst"))
+      {
+        while( rc != NULL)
+        {
+          rc = strtok(pre, " ")
+        }
+        iph = ip_hdr(skb);
+        if (kstrtol(rc, 10, &result) < 0){
+          return -EINVAL;
+        }
+        if (htohs(iph->dest) == result )
+        {
+          return NF_DROP;
+        }
+      }
+      if(strstr(pre,"src"))
+      {
+        while( rc != NULL)
+        {
+          rc = strtok(pre, " ")
+        }
+        iph = ip_hdr(skb);
+        if (kstrtol(rc, 10, &result) < 0){
+          return -EINVAL;
+        }
+        if (htohs(iph->src) == result )
+        {
+          return NF_DROP;
+        }
+      }
+    }
+    if (strstr(pre,"tcp"))
+    {
+      if (strstr(pre,"port_dst"))
+      {
+        while( rc != NULL)
+        {
+          rc = strtok(pre, " ")
+        }
+        tcph = tcp_hdr(skb);
+        if (kstrtol(rc, 10, &result) < 0){
+          return -EINVAL;
+        }
+        if (htohs(tcph->port_dst) == result )
+        {
+          return NF_DROP;
+        }
+      }
+      if (strstr(pre,"port_src"))
+      {
+        while( rc != NULL)
+        {
+          rc = strtok(pre, " ")
+        }
+        tcph = tcp_hdr(skb);
+        if (kstrtol(rc, 10, &result) < 0){
+          return -EINVAL;
+        }
+        if (htohs(tcph->port_src) == result )
+        {
+          return NF_DROP;
+        }
+      }
+
+    }
+    if (strstr(pre,"udp"))
+    {
+      if (strstr(pre,"port_dst"))
+      {
+        while( rc != NULL)
+        {
+          rc = strtok(pre, " ")
+        }
+        udph = udp_hdr(skb);
+        if (kstrtol(rc, 10, &result) < 0){
+          return -EINVAL;
+        }
+        if (htohs(tcph->port_dst) == result )
+        {
+          return NF_DROP;
+        }
+      }
+      if (strstr(pre,"port_src"))
+      {
+        while( rc != NULL)
+        {
+          rc = strtok(pre, " ")
+        }
+        udph = udp_hdr(skb);
+        if (kstrtol(rc, 10, &result) < 0){
+          return -EINVAL;
+        }
+        if (htohs(udph->port_src) == result )
+        {
+          return NF_DROP;
+        }
+      }
+    }
+
+  }
+  return NF_ACCEPT;
 }
 
 static const struct nf_hook_ops prerouting = {
-	.hook		= func_pre_routing,			/* hook function */
-	.pf		    = PF_INET,			/* IPv4 */
-	.hooknum	= NF_INET_PRE_ROUTING,	/* received packets */
-	.priority	= NF_IP_PRI_FIRST,		/* max hook priority */
+	.hook		= func_filter,
+	.pf		    = PF_INET,
+	.hooknum	= NF_INET_PRE_ROUTING,
+	.priority	= NF_IP_PRI_FIRST,
 };
 
 static const struct nf_hook_ops forward = {
-	.hook		= func_forward,			/* hook function */
-	.pf		    = PF_INET,			/* IPv4 */
-	.hooknum	= NF_INET_FORWARD,	/* received packets */
-	.priority	= NF_IP_PRI_FIRST,		/* max hook priority */
+	.hook		= func_filter,
+	.pf		    = PF_INET,
+	.hooknum	= NF_INET_FORWARD,
+	.priority	= NF_IP_PRI_FIRST,
 };
 
 static const struct nf_hook_ops input = {
-	.hook		= func_input,			/* hook function */
-	.pf		    = PF_INET,			/* IPv4 */
-	.hooknum	= NF_INET_LOCAL_IN  ,	/* received packets */
-	.priority	= NF_IP_PRI_FIRST,		/* max hook priority */
+	.hook		= func_filter,
+	.pf		    = PF_INET,
+	.hooknum	= NF_INET_LOCAL_IN  ,
+	.priority	= NF_IP_PRI_FIRST,
 };
 
 static const struct nf_hook_ops output = {
-	.hook		= func_output,			/* hook function */
-	.pf		    = PF_INET,			/* IPv4 */
-	.hooknum	= NF_INET_LOCAL_OUT,	/* received packets */
-	.priority	= NF_IP_PRI_FIRST,		/* max hook priority */
+	.hook		= func_filter,
+	.pf		    = PF_INET,
+	.hooknum	= NF_INET_LOCAL_OUT,
+	.priority	= NF_IP_PRI_FIRST,
 };
 
 static const struct nf_hook_ops postrouting = {
-	.hook		= func_post_routing,			/* hook function */
-	.pf		    = PF_INET,			/* IPv4 */
-	.hooknum	= NF_INET_POST_ROUTING,	/* received packets */
-	.priority	= NF_IP_PRI_FIRST,		/* max hook priority */
+	.hook		= func_filter,
+	.pf		    = PF_INET,
+	.hooknum	= NF_INET_POST_ROUTING,
+	.priority	= NF_IP_PRI_FIRST,
 };
 
 
@@ -307,7 +456,7 @@ static const struct file_operations f_ops = {
 int init_module()
 {
   int rv = 0;
-  struct proc_dir_entry *base_dir, *entry;
+  struct proc_dir_entry *base_dir, *output, *input, *pre, *post, *entry;
 
   printk(KERN_INFO "Trying to create /proc/base_dir:\n");
   //create dir in /proc
@@ -317,9 +466,58 @@ int init_module()
 				BASE_DIR);
 		return -ENOMEM;
 	}
-    //функции для создания файла в родительской директории
-    entry = proc_create_data("file_base_dir", S_IRUGO | S_IWUSR, base_dir, &f_ops, 0);
 
+  output = proc_mkdir("output", base_dir);
+	if (!output) {
+		printk(KERN_ERR "Couldn't create base dir /proc/%s\n",
+				BASE_DIR);
+		return -ENOMEM;
+	}
+
+  input = proc_mkdir("output", base_dir);
+	if (!input) {
+		printk(KERN_ERR "Couldn't create base dir /proc/%s\n",
+				BASE_DIR);
+		return -ENOMEM;
+	}
+
+  forward = proc_mkdir("output", base_dir);
+	if (!forward) {
+		printk(KERN_ERR "Couldn't create base dir /proc/%s\n",
+				BASE_DIR);
+		return -ENOMEM;
+	}
+
+  pre = proc_mkdir("output", base_dir);
+	if (!pre) {
+		printk(KERN_ERR "Couldn't create base dir /proc/%s\n",
+				BASE_DIR);
+		return -ENOMEM;
+	}
+
+  post = proc_mkdir("output", base_dir);
+	if (!post) {
+		printk(KERN_ERR "Couldn't create base dir /proc/%s\n",
+				BASE_DIR);
+		return -ENOMEM;
+	}
+
+    //функции для создания файла в родительской директории
+    entry = proc_create_data("rules", S_IRUGO | S_IWUSR, output, &f_ops, 0);
+    entry = proc_create_data("rules", S_IRUGO | S_IWUSR, input, &f_ops, 0);
+    entry = proc_create_data("rules", S_IRUGO | S_IWUSR, forward, &f_ops, 0);
+    entry = proc_create_data("rules", S_IRUGO | S_IWUSR, pre, &f_ops, 0);
+    entry = proc_create_data("rules", S_IRUGO | S_IWUSR, post, &f_ops, 0);
+
+    entry = proc_create_data("remove_rules", S_IRUGO | S_IWUSR, output, &f_ops, 0);
+    entry = proc_create_data("remove_rules", S_IRUGO | S_IWUSR, input, &f_ops, 0);
+    entry = proc_create_data("remove_rules", S_IRUGO | S_IWUSR, forward, &f_ops, 0);
+    entry = proc_create_data("remove_rules", S_IRUGO | S_IWUSR, pre, &f_ops, 0);
+    entry = proc_create_data("remove_rules", S_IRUGO | S_IWUSR, post, &f_ops, 0);
+
+    entry = proc_create_data("show", S_IRUGO | S_IWUSR, base_dir, &f_ops, 0);
+
+/* регистрация крючков для перехвата пакетов на каждом узле*/
     nf_register_net_hook(&init_net, &prerouting);
     nf_register_net_hook(&init_net, &forward);
     nf_register_net_hook(&init_net, &input);
@@ -331,6 +529,11 @@ int init_module()
 
 void cleanup_module()
 {
+  /*перд тем как удалить модуль нужно удалить псевдофайлы и директорию*/
+  remove_proc_entry("rules",NULL);
+  remove_proc_entry("remove_rules",NULL);
+  remove_proc_entry("show",NULL);
+  remove_proc_entry("output",NULL);
   remove_proc_entry(BASE_DIR, NULL);
   printk(KERN_INFO "/proc/BASE_DIR removed\n");
 }
